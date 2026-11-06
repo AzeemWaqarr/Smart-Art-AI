@@ -1,0 +1,37 @@
+{
+  "name": "smart-art-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "db:push": "prisma db push",
+    "seed": "tsx --env-file-if-exists=.env src/seed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "ai:check": "tsx --env-file-if-exists=.env src/ai-check.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.10.1",
+    "prisma": "6.19.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

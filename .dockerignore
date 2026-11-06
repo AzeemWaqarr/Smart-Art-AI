@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+server/uploads
+server/prisma/*.db
+server/.env
+*.html
+!client/index.html

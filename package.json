@@ -1,0 +1,25 @@
+{
+  "name": "smart-art",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Smart Art – AI art coach progressive web app (student, parent and admin)",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run db:push -w server && npm run seed -w server",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "npm run start -w server",
+    "seed": "npm run seed -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "ai:check": "npm run ai:check -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

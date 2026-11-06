@@ -1,0 +1,20 @@
+services:
+  smartart:
+    build: .
+    ports:
+      - "4000:4000"
+    env_file: server/.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/data/smartart.db
+      UPLOAD_DIR: /data/uploads
+      # Your Qwen model running on the host machine (Ollama example):
+      # AI_BASE_URL: http://host.docker.internal:11434/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - smartart-data:/data
+    restart: unless-stopped
+
+volumes:
+  smartart-data:

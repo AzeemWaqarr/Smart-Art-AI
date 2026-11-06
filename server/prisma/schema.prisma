@@ -1,0 +1,191 @@
+// Smart Art data model.
+// SQLite by default. To switch to PostgreSQL change `provider` to "postgresql"
+// and point DATABASE_URL at your database, then run `npm run db:push -w server`.
+// String columns are used instead of enums so the schema works on both.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  role          String    // "student" | "parent" | "admin"
+  name          String
+  email         String?   @unique
+  username      String?   @unique // children log in with a username chosen by their parent
+  passwordHash  String
+  birthYear     Int?
+  language      String    @default("en") // "en" | "ur"
+  phone         String?
+  status        String    @default("active") // "active" | "suspended"
+
+  // Parent → child link (children are students with a parentId)
+  parentId String?
+  parent   User?   @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children User[]  @relation("ParentChildren")
+
+  // Settings a parent controls for a child (also used by teens for themselves)
+  weeklyReport  Boolean @default(true)
+  shareTeacher  Boolean @default(false)
+  dailyLimitOn  Boolean @default(false)
+  dailyLimitMin Int     @default(30)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime?
+
+  drawings         Drawing[]
+  practiceSessions PracticeSession[]
+  badges           UserBadge[]
+  challengeEntries ChallengeEntry[]
+  activity         DailyActivity[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+
+  @@index([role])
+  @@index([parentId])
+}
+
+model Drawing {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String   @default("My drawing")
+  mode       String   @default("paper") // "paper" | "screen"
+  imagePath  String
+  mime       String   @default("image/jpeg")
+  status     String   @default("processing") // "processing" | "done" | "failed" | "rejected"
+  error      String?
+  provider   String? // "openai" | "mock"
+  model      String?
+  // Feedback (JSON strings, see services/drawings.ts for shape)
+  praise     String? // {en:{title,text}, ur:{title,text}}
+  tips       String? // [{area,x,y,en,ur,why:{en,ur}}]
+  exercise   String? // {en,ur} a 5-minute practice for the weakest skill
+  scores     String? // {colour,light,proportion,composition}
+  durationMs Int?
+  createdAt  DateTime @default(now())
+  analyzedAt DateTime?
+
+  challengeEntries ChallengeEntry[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  titleUr     String?
+  category    String // "light" | "colour" | "proportion" | "composition" | "perspective" | "shapes"
+  summary     String
+  summaryUr   String?
+  durationMin Int      @default(5)
+  steps       String // JSON: [{en, ur}]
+  published   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions PracticeSession[]
+}
+
+model PracticeSession {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  stepsDone      Int
+  stepsTotal     Int
+  secondsSpent   Int      @default(0)
+  completed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code     String
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, code])
+}
+
+model Challenge {
+  id          String   @id @default(cuid())
+  title       String
+  titleUr     String?
+  description String
+  descriptionUr String?
+  prize       String?
+  startsAt    DateTime
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  entries ChallengeEntry[]
+}
+
+model ChallengeEntry {
+  id          String    @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drawingId   String?
+  drawing     Drawing?  @relation(fields: [drawingId], references: [id], onDelete: SetNull)
+  joinedAt    DateTime  @default(now())
+  submittedAt DateTime?
+
+  @@unique([challengeId, userId])
+}
+
+model DailyActivity {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day     String // YYYY-MM-DD in APP_TZ
+  minutes Int    @default(0)
+
+  @@unique([userId, day])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model AppSetting {
+  key   String @id
+  value String
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  target    String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
