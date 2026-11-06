@@ -146,25 +146,9 @@ function AppBar({ sub, menu }: { sub: string; menu?: MenuItem[] }) {
   );
 }
 
-function Pitch() {
-  return (
-    <aside className="pitch">
-      <img src="/logo.png" alt="Smart Art logo" />
-      <div className="kicker">Prototype · Junior CEO Challenge 2026</div>
-      <h1>Smart Art, your personal AI art coach</h1>
-      <p>Snap a photo of your drawing. The coach tells you what's working and gives three tips to try next time. It coaches you; it never draws for you.</p>
-      <ul>
-        <li>Tips on colour, light, proportion and layout</li>
-        <li>English and Urdu</li>
-        <li>Daily challenges and short lessons</li>
-      </ul>
-      <p style={{ marginTop: 14, fontSize: 13 }}>Made by Zoona Imran, Class 8, Bagh Grammar School, Bagh, AJK.</p>
-    </aside>
-  );
-}
-
-/** Phone-sized app frame: a real phone on mobile, a phone mock-up on desktop. */
-export function Device({ children, sub, menu, tabs, pitch }: { children: ReactNode; sub?: string; menu?: MenuItem[]; tabs?: ReactNode; pitch?: boolean }) {
+/** The app layout: header, scrolling content, tabs. Full screen on every device
+    (tabs at the bottom on phones, under the header on wider screens). */
+export function Device({ children, sub, menu, tabs }: { children: ReactNode; sub?: string; menu?: MenuItem[]; tabs?: ReactNode }) {
   useDocumentDirection(true);
   const { t } = useT();
   const loc = useLocation();
@@ -173,25 +157,20 @@ export function Device({ children, sub, menu, tabs, pitch }: { children: ReactNo
     main.current?.scrollTo({ top: 0 });
   }, [loc.pathname]);
   return (
-    <div className="wrap">
-      {pitch && <Pitch />}
-      <div className="phone">
-        <div className="device">
-          <AppBar sub={sub || t('Your AI art coach')} menu={menu} />
-          <AppBanners />
-          <main className="main" ref={main} id="main">
-            {children}
-          </main>
-          {tabs}
-        </div>
-      </div>
+    <div className="device">
+      <AppBar sub={sub || t('Your AI art coach')} menu={menu} />
+      <AppBanners />
+      <main className="main" ref={main} id="main">
+        {children}
+      </main>
+      {tabs}
     </div>
   );
 }
 
-/** Screens before login (welcome, login, sign-up): frame + pitch note on desktop. */
+/** Screens before login (welcome, login, sign-up). */
 export function PhoneShell({ children }: { children?: ReactNode }) {
-  return <Device pitch>{children ?? <Outlet />}</Device>;
+  return <Device>{children ?? <Outlet />}</Device>;
 }
 
 const TAB_ICONS: Record<string, ReactNode> = {
