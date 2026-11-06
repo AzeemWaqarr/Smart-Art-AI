@@ -5,6 +5,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_ROOT = path.resolve(here, '..');
 
 const isProd = process.env.NODE_ENV === 'production';
+const onVercel = !!process.env.VERCEL;
 
 const jwtSecret = process.env.JWT_SECRET || '';
 if (isProd && (jwtSecret.length < 24 || jwtSecret.startsWith('change-me'))) {
@@ -13,9 +14,11 @@ if (isProd && (jwtSecret.length < 24 || jwtSecret.startsWith('change-me'))) {
 
 export const env = {
   isProd,
+  onVercel,
   port: Number(process.env.PORT || 4000),
   jwtSecret: jwtSecret || 'dev-only-secret-do-not-use-in-production',
   tz: process.env.APP_TZ || 'Asia/Karachi',
+  // only used when Vercel Blob is not configured (local / Docker)
   uploadDir: path.resolve(SERVER_ROOT, process.env.UPLOAD_DIR || 'uploads'),
   clientDist: path.resolve(SERVER_ROOT, '..', 'client', 'dist'),
   ai: {

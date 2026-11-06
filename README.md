@@ -8,18 +8,19 @@ Smart Art is an installable progressive web app (PWA). It's based on the 8-scree
 | **Parent** | Add children (username login, no email), see each child's progress and drawings, daily time limit and other safety settings | `/parent` |
 | **Admin** | Dashboard, users (search, suspend, reset password, delete), lessons, challenges, AI coach monitor, settings, announcements, audit log | `/admin` |
 
-**Stack:** React 18 + TypeScript + Vite + `vite-plugin-pwa` (Workbox) · Node/Express API · Prisma ORM on SQLite (switchable to PostgreSQL) · JWT session in an httpOnly cookie.
+**Stack:** React 18 + TypeScript + Vite + `vite-plugin-pwa` (Workbox) · Node/Express API · Prisma ORM on PostgreSQL · drawings in Vercel Blob (or on disk locally) · deployable to Vercel · JWT session in an httpOnly cookie.
 
 ---
 
 ## Run it locally
 
-Requires Node 20+.
+Requires Node 20+ and Docker Desktop (for the local PostgreSQL database).
 
 ```bash
 npm install
 cp server/.env.example server/.env      # then edit JWT_SECRET, ADMIN_PASSWORD, AI_* values
-npm run db:push -w server               # create the database
+npm run db:up                           # start PostgreSQL in Docker
+npm run db:push -w server               # create the tables
 npm run seed                            # admin + lessons + challenge (+ demo accounts)
 npm run dev                             # API on :4000, app on http://localhost:5173
 ```
@@ -93,30 +94,59 @@ There are no plans, payments or premium content. Every account gets unlimited co
 
 ---
 
-## Production
+## Deploy to Vercel
+
+The repo is set up for Vercel: `vercel.json` builds the PWA as static files, and `api/index.mjs` runs the Express API as one serverless function. Vercel needs two free add-ons, because a serverless function cannot keep files: **Neon Postgres** for the database and **Vercel Blob** for drawing photos.
+
+1. **Import the project.** Sign in at vercel.com with GitHub, then **Add New → Project → Import** `Smart-Art-AI`. Leave Framework Preset as **Other** and Root Directory as `./`, because `vercel.json` sets the build. Click **Deploy**. This first build fails at the database step because there is no database yet. That is expected.
+2. **Add the database.** In the project, go to **Storage → Create Database → Neon (Serverless Postgres)** and accept the defaults. Connect it to the project for all environments. This adds `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
+3. **Add photo storage.** Go to **Storage → Create → Blob** and connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`.
+4. **Add the remaining variables** under **Settings → Environment Variables**, for all environments:
+
+   | Name | Value |
+   |---|---|
+   | `JWT_SECRET` | a long random string. Generate one with `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+   | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | the first admin account, created on the first deploy |
+   | `SEED_DEMO` | `false` (`true` adds the demo parent, child and teen) |
+   | `APP_TZ` | `Asia/Karachi` |
+   | `AI_PROVIDER` | `openai` |
+   | `AI_BASE_URL` | `https://gcpqwenchatbot.carecloud.com/api` |
+   | `AI_API_KEY` | your Open WebUI key |
+   | `AI_MODEL` | `qwen3.8-27b-fast` |
+   | `AI_TIMEOUT` | `50` (must stay under the function's 60-second limit) |
+   | `AI_DISABLE_THINKING` | `true` |
+
+5. **Redeploy.** Go to **Deployments → ⋯ on the latest → Redeploy**. The build creates the tables, the lessons, today's challenge and your admin account.
+6. **Check it.** Open the site, log in as the admin, then go to **Admin → AI coach → Test connection**. If it can't reach the model, your company server is not reachable from the public internet. Ask IT to allow it, or host the app inside the company network (see Docker below).
+
+Every push to `main` deploys automatically. The build re-applies schema changes to the database, but it stops rather than delete data. The free Hobby plan is for personal, non-commercial use, so use Vercel Pro for a commercial launch.
+
+## Other hosting
 
 ```bash
-npm run build          # builds client/dist and server/dist
+npm run build                   # builds client/dist and server/dist
 NODE_ENV=production npm start   # one port (PORT, default 4000) serves the API and the PWA
 ```
 
-To test a production build over plain `http://` on your LAN (e.g. from a phone), add `COOKIE_SECURE=false`. Never do this on a public deployment.
+This needs a PostgreSQL `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. Photos are saved to `UPLOAD_DIR` unless `BLOB_READ_WRITE_TOKEN` is set. To test a production build over plain `http://` on your LAN, add `COOKIE_SECURE=false`. Never do this on a public deployment.
 
-**Docker:** `docker compose up -d --build`. The database and uploads live in the `smartart-data` volume. Point `AI_BASE_URL` at `http://host.docker.internal:11434/v1` to reach a model running on the host.
-
-**PostgreSQL:** in `server/prisma/schema.prisma` set `provider = "postgresql"`, set `DATABASE_URL`, then run `npm run db:push -w server`.
+**Docker:** `docker compose --profile app up -d --build` runs the app and its PostgreSQL together. The database lives in the `smartart-db` volume and photos in `smartart-uploads`.
 
 ## Project layout
 
 ```
 server/
   prisma/schema.prisma      data model
-  src/index.ts              Express app (+ serves client/dist in production)
+  src/app.ts                Express app (+ serves client/dist when not on Vercel)
+  src/index.ts              starts the server locally / in Docker
   src/auth.ts               sessions, roles, access checks
   src/ai/coach.ts           Qwen / OpenAI-compatible adapter + demo coach
   src/routes/               auth · student · family · admin
   src/services/             stats (streaks, skills), badges, drawings queue, settings
   src/seed.ts               admin, lessons, challenge, demo data
+  src/services/storage.ts   drawing photos: Vercel Blob or local disk
+api/index.mjs               Vercel serverless entry (uses server/dist)
+vercel.json                 Vercel build, routing and headers
 client/
   src/pages/                student + parent screens
   src/admin/                admin console

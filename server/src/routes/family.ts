@@ -1,10 +1,8 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { env } from '../env.js';
+import { removeUserFiles } from '../services/storage.js';
 import { publicUser, requireAuth } from '../auth.js';
 import { ah, HttpError, parse } from '../util.js';
 import { minutesToday, streak, weekSummary } from '../services/stats.js';
@@ -111,7 +109,7 @@ familyRouter.delete(
   ah(async (req, res) => {
     const child = await ownChild(req.user!.id, req.params.id);
     await prisma.user.delete({ where: { id: child.id } });
-    await fs.rm(path.join(env.uploadDir, child.id), { recursive: true, force: true });
+    await removeUserFiles(child.id);
     res.json({ ok: true });
   }),
 );

@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 ENV NODE_ENV=production
 # keeps dev dependencies: the prisma CLI and tsx are used at start-up for schema sync and seeding
 COPY --from=build /app /app
-# Data lives in volumes: the SQLite database and uploaded drawings
-ENV DATABASE_URL=file:/data/smartart.db UPLOAD_DIR=/data/uploads PORT=4000
+# Uploaded drawings live in a volume (the database is PostgreSQL, see docker-compose.yml)
+ENV UPLOAD_DIR=/data/uploads PORT=4000
 VOLUME ["/data"]
 EXPOSE 4000
 WORKDIR /app/server

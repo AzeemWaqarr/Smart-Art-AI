@@ -48,10 +48,19 @@ export async function evaluateBadges(userId: string): Promise<string[]> {
     if (ok) earned.push(b.code);
   }
 
+  // Two checks can run at once (e.g. a drawing finishing while a lesson is saved). Only the one whose insert
+  // succeeds announces the badge; the other sees the unique-constraint error and skips it.
+  const awarded: string[] = [];
   for (const code of earned) {
-    await prisma.userBadge.upsert({ where: { userId_code: { userId, code } }, update: {}, create: { userId, code } });
+    try {
+      await prisma.userBadge.create({ data: { userId, code } });
+    } catch (e) {
+      if ((e as { code?: string }).code === 'P2002') continue;
+      throw e;
+    }
+    awarded.push(code);
     const b = BADGES.find((x) => x.code === code)!;
     await notify(userId, `New badge: ${b.name}`, 'Well done! See it on your progress page.', '/app/progress');
   }
-  return earned;
+  return awarded;
 }

@@ -1,13 +1,12 @@
 /* Seeds the database: first admin, lessons, a monthly challenge and (optionally) demo accounts.
    Safe to run more than once. */
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { addDays, dayKey, dayStartUtc } from './util.js';
 import { evaluateBadges } from './services/badges.js';
 import { ensureDailyChallenge } from './services/challenges.js';
+import { saveFile } from './services/storage.js';
 
 const LESSONS = [
   {
@@ -202,16 +201,14 @@ async function main() {
   // update demo drawings created by an older version of this seed to the new feedback format
   for (const [i, d] of DEMO_DRAWINGS.entries()) {
     await prisma.drawing.updateMany({
-      where: { userId: child.id, imagePath: `${child.id}/demo-${i}.svg` },
+      where: { userId: child.id, imagePath: { contains: `/demo-${i}` } },
       data: { praise: JSON.stringify(d.praise), tips: JSON.stringify(d.tips), scores: JSON.stringify(d.scores), exercise: JSON.stringify(d.exercise) },
     });
   }
 
   if ((await prisma.drawing.count({ where: { userId: child.id } })) === 0) {
-    await fs.mkdir(path.join(env.uploadDir, child.id), { recursive: true });
     for (const [i, d] of DEMO_DRAWINGS.entries()) {
-      const rel = `${child.id}/demo-${i}.svg`;
-      await fs.writeFile(path.join(env.uploadDir, rel), d.svg);
+      const rel = await saveFile(`${child.id}/demo-${i}.svg`, Buffer.from(d.svg), 'image/svg+xml');
       const when = new Date(Date.now() - d.daysAgo * 86400000 - 3600000);
       await prisma.drawing.create({
         data: {

@@ -1,8 +1,8 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import type { Drawing } from '@prisma/client';
 import { prisma } from '../db.js';
+import { waitUntil } from '@vercel/functions';
 import { env } from '../env.js';
+import { readFile } from './storage.js';
 import { analyseDrawing } from '../ai/coach.js';
 import { ageFromBirthYear, safeJson } from '../util.js';
 import { evaluateBadges } from './badges.js';
@@ -27,17 +27,26 @@ export function serializeDrawing(d: Drawing) {
   };
 }
 
-export function imageFile(d: Pick<Drawing, 'imagePath'>) {
-  return path.join(env.uploadDir, d.imagePath);
-}
-
 // A tiny in-process queue so a local model only handles one image at a time.
 const queue: string[] = [];
 let running = false;
 
 export function enqueueAnalysis(drawingId: string) {
+  if (env.onVercel) {
+    // Serverless: keep this function alive after the response until the analysis is saved.
+    waitUntil(runAnalysis(drawingId).catch((e) => console.error('analysis crashed', drawingId, e)));
+    return;
+  }
   if (!queue.includes(drawingId)) queue.push(drawingId);
   void pump();
+}
+
+/** On serverless a function can be cut off; anything "processing" for too long is marked failed so it can be retried. */
+export async function failIfStale<T extends Pick<Drawing, 'id' | 'status' | 'createdAt' | 'analyzedAt'>>(d: T): Promise<T | Drawing> {
+  if (!env.onVercel || d.status !== 'processing') return d;
+  const limit = env.ai.timeoutMs + 60_000;
+  if (Date.now() - d.createdAt.getTime() < limit) return d;
+  return prisma.drawing.update({ where: { id: d.id }, data: { status: 'failed', error: 'The coach took too long. Please try again.' } });
 }
 
 async function pump() {
@@ -58,7 +67,7 @@ async function runAnalysis(id: string) {
   if (!d || d.status !== 'processing') return;
   const started = Date.now();
   try {
-    const image = await fs.readFile(imageFile(d));
+    const image = await readFile(d.imagePath);
     const r = await analyseDrawing({
       image,
       mime: d.mime,

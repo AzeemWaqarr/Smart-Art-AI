@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -12,6 +10,7 @@ import { testAi } from '../ai/coach.js';
 import { DEFAULT_SETTINGS, getSettings, updateSettings } from '../services/settings.js';
 import { audit, notify } from '../services/notify.js';
 import { enqueueAnalysis, serializeDrawing } from '../services/drawings.js';
+import { removeUserFiles } from '../services/storage.js';
 import { skillLevels, streak, weekSummary } from '../services/stats.js';
 
 export const adminRouter = Router();
@@ -66,7 +65,7 @@ adminRouter.get(
     const page = Math.max(1, Number(req.query.page || 1));
     const take = 25;
     const where: Prisma.UserWhereInput = {};
-    if (q) where.OR = [{ name: { contains: q } }, { email: { contains: q.toLowerCase() } }, { username: { contains: q.toLowerCase() } }];
+    if (q) where.OR = [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }, { username: { contains: q, mode: 'insensitive' } }];
     if (['student', 'parent', 'admin'].includes(role)) where.role = role;
     if (status === 'active' || status === 'suspended') where.status = status;
     const [total, users] = await Promise.all([
@@ -174,7 +173,7 @@ adminRouter.delete(
     const u = await prisma.user.findUnique({ where: { id: req.params.id }, include: { children: { select: { id: true } } } });
     if (!u) throw new HttpError(404, 'User not found.');
     await prisma.user.delete({ where: { id: u.id } }); // children cascade
-    for (const id of [u.id, ...u.children.map((c) => c.id)]) await fs.rm(path.join(env.uploadDir, id), { recursive: true, force: true });
+    for (const id of [u.id, ...u.children.map((c) => c.id)]) await removeUserFiles(id);
     await audit(req.user!.id, 'user.delete', u.id, { email: u.email, username: u.username, role: u.role, children: u.children.length });
     res.json({ ok: true });
   }),

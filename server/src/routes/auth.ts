@@ -6,6 +6,7 @@ import { prisma } from '../db.js';
 import { clearSession, publicUser, requireAuth, setSession } from '../auth.js';
 import { ah, dayKey, HttpError, parse } from '../util.js';
 import { minutesToday, timeLimitReached } from '../services/stats.js';
+import { removeUserFiles } from '../services/storage.js';
 
 export const authRouter = Router();
 
@@ -168,6 +169,7 @@ authRouter.delete(
     if (!(await bcrypt.compare(pw, req.user!.passwordHash))) throw new HttpError(400, 'Your password is not right.');
     if (req.user!.parentId) throw new HttpError(403, 'Ask your parent to remove your account.');
     await prisma.user.delete({ where: { id: req.user!.id } });
+    await removeUserFiles(req.user!.id);
     clearSession(res);
     res.json({ ok: true });
   }),

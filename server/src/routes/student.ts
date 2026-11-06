@@ -1,15 +1,13 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { env } from '../env.js';
 import { canViewStudent, requireAuth, resolveStudentId } from '../auth.js';
 import { ah, dayKey, dayStartUtc, HttpError, parse, safeJson, weekStart } from '../util.js';
 import { BADGES, evaluateBadges } from '../services/badges.js';
-import { enqueueAnalysis, imageFile, serializeDrawing } from '../services/drawings.js';
+import { enqueueAnalysis, failIfStale, serializeDrawing } from '../services/drawings.js';
+import { readFile, removeFile, saveFile } from '../services/storage.js';
 import { ensureDailyChallenge } from '../services/challenges.js';
 import { skillLevels, streak, timeLimitReached, weeklyCounts, SKILLS, type Scores } from '../services/stats.js';
 
@@ -116,9 +114,7 @@ studentRouter.post(
     if (await timeLimitReached(u)) throw new HttpError(403, "That's enough screen time for today. See you tomorrow!", 'time_limit');
     const body = parse(z.object({ mode: z.enum(['paper', 'screen']).default('paper'), title: z.string().trim().max(40).optional() }), req.body);
     const ext = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpg';
-    const rel = `${u.id}/${crypto.randomUUID()}.${ext}`;
-    await fs.mkdir(path.join(env.uploadDir, u.id), { recursive: true });
-    await fs.writeFile(path.join(env.uploadDir, rel), req.file.buffer);
+    const rel = await saveFile(`${u.id}/${crypto.randomUUID()}.${ext}`, req.file.buffer, req.file.mimetype);
     const d = await prisma.drawing.create({
       data: { userId: u.id, mode: body.mode, title: body.title || 'My drawing', imagePath: rel, mime: req.file.mimetype },
     });
@@ -140,7 +136,7 @@ studentRouter.get(
 async function loadDrawingFor(reqUser: Express.Request['user'], id: string) {
   const d = await prisma.drawing.findUnique({ where: { id } });
   if (!d || !(await canViewStudent(reqUser!, d.userId))) throw new HttpError(404, 'Drawing not found.');
-  return d;
+  return (await failIfStale(d)) as typeof d;
 }
 
 studentRouter.get(
@@ -167,7 +163,7 @@ studentRouter.get(
   ah(async (req, res) => {
     const d = await loadDrawingFor(req.user, req.params.id);
     res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
-    res.type(d.mime).sendFile(imageFile(d));
+    res.type(d.mime).send(await readFile(d.imagePath));
   }),
 );
 
@@ -202,7 +198,7 @@ studentRouter.delete(
   ah(async (req, res) => {
     const d = await loadDrawingFor(req.user, req.params.id);
     await prisma.drawing.delete({ where: { id: d.id } });
-    await fs.rm(imageFile(d), { force: true });
+    await removeFile(d.imagePath);
     res.json({ ok: true });
   }),
 );

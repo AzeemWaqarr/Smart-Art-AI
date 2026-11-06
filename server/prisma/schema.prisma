@@ -1,15 +1,15 @@
-// Smart Art data model.
-// SQLite by default. To switch to PostgreSQL change `provider` to "postgresql"
-// and point DATABASE_URL at your database, then run `npm run db:push -w server`.
-// String columns are used instead of enums so the schema works on both.
+// Smart Art data model (PostgreSQL: Neon on Vercel, Docker locally).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "rhel-openssl-3.0.x" is the runtime Vercel functions use
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Neon: the default URL)
+  directUrl = env("DATABASE_URL_UNPOOLED") // direct connection for schema changes (the Vercel–Neon integration sets both)
 }
 
 model User {

@@ -1,20 +1,34 @@
 services:
-  smartart:
+  # Local PostgreSQL for development:  npm run db:up
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: smartart
+      POSTGRES_PASSWORD: smartart
+      POSTGRES_DB: smartart
+    ports:
+      - "5432:5432"
+    volumes:
+      - smartart-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # The whole app in one container (optional; Vercel is the main deployment):  docker compose up -d --build app
+  app:
     build: .
+    profiles: ["app"]
+    depends_on: [db]
     ports:
       - "4000:4000"
     env_file: server/.env
     environment:
       NODE_ENV: production
-      DATABASE_URL: file:/data/smartart.db
+      DATABASE_URL: postgresql://smartart:smartart@db:5432/smartart
+      DATABASE_URL_UNPOOLED: postgresql://smartart:smartart@db:5432/smartart
       UPLOAD_DIR: /data/uploads
-      # Your Qwen model running on the host machine (Ollama example):
-      # AI_BASE_URL: http://host.docker.internal:11434/v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
-      - smartart-data:/data
+      - smartart-uploads:/data
     restart: unless-stopped
 
 volumes:
-  smartart-data:
+  smartart-db:
+  smartart-uploads:
