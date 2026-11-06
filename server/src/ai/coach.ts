@@ -12,7 +12,7 @@ export type Feedback = {
   scores: Scores; // stored 0..100 (the model answers 1..5; we multiply by 20)
   exercise: Bi;
 };
-export type CoachResult = Feedback & { provider: 'openai' | 'mock'; model: string };
+export type CoachResult = Feedback & { provider: string; model: string };
 
 export type CoachInput = {
   image: Buffer;
@@ -68,7 +68,12 @@ async function chat(messages: ChatMessage[], opts: { maxTokens: number; timeoutM
   const url = `${env.ai.baseUrl}/chat/completions`;
   const base: Record<string, unknown> = { model: env.ai.model, temperature: 0.4, max_tokens: opts.maxTokens, messages };
   if (opts.json && env.ai.jsonMode) base.response_format = { type: 'json_object' };
-  const extras: Record<string, unknown> = env.ai.disableThinking ? { chat_template_kwargs: { enable_thinking: false }, think: false } : {};
+  // Gemini: reasoning_effort "none" skips thinking where supported (retried without if rejected). Qwen: chat_template_kwargs (vLLM/SGLang) / think (Ollama).
+  const extras: Record<string, unknown> = !env.ai.disableThinking
+    ? {}
+    : env.ai.provider === 'gemini'
+      ? { reasoning_effort: 'none' }
+      : { chat_template_kwargs: { enable_thinking: false }, think: false };
 
   const attempt = async (body: Record<string, unknown>) => {
     const ctrl = new AbortController();
@@ -105,7 +110,7 @@ async function chat(messages: ChatMessage[], opts: { maxTokens: number; timeoutM
   return { content, finishReason: choice?.finish_reason };
 }
 
-const withNoThink = (text: string) => (env.ai.disableThinking ? `${text} /no_think` : text);
+const withNoThink = (text: string) => (env.ai.disableThinking && env.ai.provider !== 'gemini' ? `${text} /no_think` : text);
 
 async function callOpenAICompatible(i: CoachInput): Promise<CoachResult> {
   const { content, finishReason } = await chat(
@@ -123,10 +128,10 @@ async function callOpenAICompatible(i: CoachInput): Promise<CoachResult> {
   );
   const parsed = extractJson(content);
   if (!parsed) {
-    const hint = finishReason === 'length' ? ' (reply was cut off: raise AI_MAX_TOKENS or keep AI_DISABLE_THINKING=true)' : '';
+    const hint = finishReason === 'length' ? ' (reply was cut off: raise AI_MAX_TOKENS)' : '';
     throw new Error(`AI reply was not valid JSON${hint}: ${content.slice(0, 200)}`);
   }
-  return { ...normalise(parsed), provider: 'openai', model: env.ai.model };
+  return { ...normalise(parsed), provider: env.ai.provider, model: env.ai.model };
 }
 
 /** Pull the first balanced {...} block out of a model reply (handles ```json fences, <think> blocks, chatter). */
@@ -299,7 +304,7 @@ const RED_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4Iyd
 export async function testAi() {
   if (!aiIsReal()) return { ok: true, provider: 'mock', model: 'demo-coach', message: 'No AI_BASE_URL configured: the built-in demo coach is used.' };
   const started = Date.now();
-  const out = (ok: boolean, message: string) => ({ ok, provider: 'openai', model: env.ai.model, message });
+  const out = (ok: boolean, message: string) => ({ ok, provider: env.ai.provider, model: env.ai.model, message });
   try {
     const { content } = await chat(
       [
@@ -311,7 +316,7 @@ export async function testAi() {
           ],
         },
       ],
-      { maxTokens: 300, timeoutMs: Math.min(env.ai.timeoutMs, 90000) },
+      { maxTokens: 1024, timeoutMs: Math.min(env.ai.timeoutMs, 90000) },
     );
     const answer = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     const ms = Date.now() - started;

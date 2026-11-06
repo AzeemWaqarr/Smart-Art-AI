@@ -50,7 +50,7 @@ adminRouter.get(
       users: { students, parents, admins, active7 },
       drawings: { week: drawingsWeek, total: drawingsTotal, failed, processing },
       daily: { signups: tally(signups), drawings: tally(drawings) },
-      ai: { real: aiIsReal(), provider: aiIsReal() ? 'openai' : 'mock', model: aiIsReal() ? env.ai.model : 'demo-coach', baseUrl: env.ai.baseUrl || null },
+      ai: { real: aiIsReal(), provider: aiIsReal() ? env.ai.provider : 'mock', model: aiIsReal() ? env.ai.model : 'demo-coach', baseUrl: env.ai.baseUrl || null },
     });
   }),
 );

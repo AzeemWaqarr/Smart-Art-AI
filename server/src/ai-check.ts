@@ -5,10 +5,11 @@ import { testAi } from './ai/coach.js';
 
 async function main() {
   if (!aiIsReal()) {
-    console.log('AI_BASE_URL is empty in server/.env, so the demo coach is used. Set it to your model server URL (ending in /v1).');
+    console.log('No AI is configured in server/.env, so the demo coach is used. Set GEMINI_API_KEY (or AI_BASE_URL for another OpenAI-compatible server).');
     process.exit(1);
   }
-  console.log(`Server: ${env.ai.baseUrl}\nModel:  ${env.ai.model}\nKey:    ${env.ai.apiKey ? 'set' : 'not set'}\n`);
+  console.log(`Provider: ${env.ai.provider}
+Server: ${env.ai.baseUrl}\nModel:  ${env.ai.model}\nKey:    ${env.ai.apiKey ? 'set' : 'not set'}\n`);
   try {
     const res = await fetch(`${env.ai.baseUrl}/models`, {
       headers: env.ai.apiKey ? { Authorization: `Bearer ${env.ai.apiKey}` } : {},
@@ -16,7 +17,7 @@ async function main() {
     });
     if (res.ok) {
       const data = (await res.json()) as { data?: { id: string }[] };
-      const ids = (data.data || []).map((m) => m.id);
+      const ids = (data.data || []).map((m) => m.id.replace(/^models\//, ''));
       console.log('Models on this server:\n' + (ids.length ? ids.map((id) => `  - ${id}${id === env.ai.model ? '   <- AI_MODEL' : ''}`).join('\n') : '  (none listed)'));
       if (ids.length && !ids.includes(env.ai.model)) console.log(`\n! AI_MODEL "${env.ai.model}" is not in this list. Copy the exact id into server/.env.`);
     } else {

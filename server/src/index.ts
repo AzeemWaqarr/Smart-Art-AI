@@ -7,6 +7,6 @@ fs.mkdirSync(env.uploadDir, { recursive: true });
 
 app.listen(env.port, () => {
   console.log(`Smart Art API on http://localhost:${env.port}`);
-  console.log(aiIsReal() ? `AI coach: ${env.ai.model} at ${env.ai.baseUrl}` : 'AI coach: demo mode (set AI_BASE_URL in server/.env to use your model)');
+  console.log(aiIsReal() ? `AI coach: ${env.ai.model} at ${env.ai.baseUrl}` : 'AI coach: demo mode (set GEMINI_API_KEY in server/.env to use Gemini)');
   void resumePending();
 });

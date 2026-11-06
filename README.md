@@ -18,7 +18,7 @@ Requires Node 20+ and Docker Desktop (for the local PostgreSQL database).
 
 ```bash
 npm install
-cp server/.env.example server/.env      # then edit JWT_SECRET, ADMIN_PASSWORD, AI_* values
+cp server/.env.example server/.env      # then edit JWT_SECRET, ADMIN_PASSWORD, GEMINI_API_KEY
 npm run db:up                           # start PostgreSQL in Docker
 npm run db:push -w server               # create the tables
 npm run seed                            # admin + lessons + challenge (+ demo accounts)
@@ -38,28 +38,23 @@ npm run dev                             # API on :4000, app on http://localhost:
 
 ---
 
-## Connecting your local Qwen model
+## Connecting the AI coach (Gemini)
 
-The coach talks to any **OpenAI-compatible** `/v1/chat/completions` endpoint. The model must be a **vision** model, e.g. Qwen2.5-VL / Qwen3-VL. Text-only Qwen models cannot see the drawing.
-
-In `server/.env`:
+The coach uses **Google Gemini**. Get a free key at <https://aistudio.google.com/apikey>, then in `server/.env`:
 
 ```ini
-AI_PROVIDER=openai
-AI_BASE_URL=https://ai.yourcompany.com/v1   # your model server, ending in /v1
-AI_MODEL=qwen3-27b                          # exact id from <AI_BASE_URL>/models
-AI_API_KEY=sk-...                           # your key
-AI_TIMEOUT=180                              # seconds; a 27B model can be slow
-AI_MAX_TOKENS=2048
-AI_DISABLE_THINKING=true                    # Qwen3: skip the "thinking" phase for faster, shorter replies
-AI_JSON_MODE=false                          # true if your server supports response_format=json_object (vLLM does)
+GEMINI_API_KEY=AIza...
+GEMINI_MODEL=gemini-flash-latest   # optional; any vision-capable Gemini model id
+AI_TIMEOUT=50                      # optional; seconds
 ```
 
-Then run **`npm run ai:check`**. It lists the models on your server, warns if `AI_MODEL` doesn't match one, and sends a small red test image to confirm the model can read images. The same image test is under **Admin → AI coach → Test connection**. Restart the server after changing `.env`.
+Then run **`npm run ai:check`**. It lists the available models and sends a small red test image to confirm the model can read images. The same image test is under **Admin → AI coach → Test connection**. Restart the server after changing `.env`.
 
-If your company server uses an internal TLS certificate, start the server with `NODE_EXTRA_CA_CERTS=path/to/company-ca.pem`.
+**Using another model instead.** Leave `GEMINI_API_KEY` empty and set `AI_BASE_URL`, `AI_API_KEY` and `AI_MODEL` to point at any OpenAI-compatible vision model (Open WebUI, vLLM, Ollama). `AI_DISABLE_THINKING=true` turns off Qwen3's thinking phase, and `AI_JSON_MODE=true` is for servers that support `response_format`.
 
-- If `AI_BASE_URL` is empty, a clearly labelled **demo coach** is used instead, so the app works without a model.
+If a self-hosted model server uses an internal TLS certificate, start the server with `NODE_EXTRA_CA_CERTS=path/to/company-ca.pem`.
+
+- If no AI is configured, a clearly labelled **demo coach** is used instead, so the app works without a model.
 - Images are analysed one at a time in a small background queue. The app shows "Your coach is looking…" and polls until the tips are ready.
 - If the model fails, the drawing is marked *failed*. The student or an admin can retry it.
 - If the model says the photo isn't a drawing, the student gets a friendly "we couldn't find a drawing" message.
@@ -109,15 +104,12 @@ The repo is set up for Vercel: `vercel.json` builds the PWA as static files, and
    | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | the first admin account, created on the first deploy |
    | `SEED_DEMO` | `false` (`true` adds the demo parent, child and teen) |
    | `APP_TZ` | `Asia/Karachi` |
-   | `AI_PROVIDER` | `openai` |
-   | `AI_BASE_URL` | `https://gcpqwenchatbot.carecloud.com/api` |
-   | `AI_API_KEY` | your Open WebUI key |
-   | `AI_MODEL` | `qwen3.8-27b-fast` |
-   | `AI_TIMEOUT` | `50` (must stay under the function's 60-second limit) |
-   | `AI_DISABLE_THINKING` | `true` |
+   | `GEMINI_API_KEY` | your Gemini key |
+   | `GEMINI_MODEL` | optional, defaults to `gemini-flash-latest` |
+   | `AI_TIMEOUT` | optional, `50` (must stay under the function's 60-second limit, which is the default on Vercel) |
 
 5. **Redeploy.** Go to **Deployments → ⋯ on the latest → Redeploy**. The build creates the tables, the lessons, today's challenge and your admin account.
-6. **Check it.** Open the site, log in as the admin, then go to **Admin → AI coach → Test connection**. If it can't reach the model, your company server is not reachable from the public internet. Ask IT to allow it, or host the app inside the company network (see Docker below).
+6. **Check it.** Open the site, log in as the admin, then go to **Admin → AI coach → Test connection**. It should answer "Red" within a few seconds. If it fails, check that `GEMINI_API_KEY` is set and redeploy.
 
 Every push to `main` deploys automatically. The build re-applies schema changes to the database, but it stops rather than delete data. The free Hobby plan is for personal, non-commercial use, so use Vercel Pro for a commercial launch.
 
@@ -140,7 +132,7 @@ server/
   src/app.ts                Express app (+ serves client/dist when not on Vercel)
   src/index.ts              starts the server locally / in Docker
   src/auth.ts               sessions, roles, access checks
-  src/ai/coach.ts           Qwen / OpenAI-compatible adapter + demo coach
+  src/ai/coach.ts           Gemini / OpenAI-compatible adapter + demo coach
   src/routes/               auth · student · family · admin
   src/services/             stats (streaks, skills), badges, drawings queue, settings
   src/seed.ts               admin, lessons, challenge, demo data

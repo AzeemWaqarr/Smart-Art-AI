@@ -217,7 +217,7 @@ export function AdminAi() {
             <span>Provider: <b>{ai.real ? 'OpenAI-compatible endpoint' : 'built-in demo (no model configured)'}</b></span>
             {ai.real && <span>Endpoint: <code>{ai.baseUrl}</code></span>}
             <span>Model: <code>{ai.model}</code></span>
-            <span className="muted">Change these in <code>server/.env</code> (AI_BASE_URL, AI_MODEL, AI_API_KEY) and restart the server.</span>
+            <span className="muted">Change these in <code>server/.env</code> (GEMINI_API_KEY and GEMINI_MODEL, or Vercel → Settings → Environment Variables) and restart the server.</span>
           </div>
         )}
         <div className="row">

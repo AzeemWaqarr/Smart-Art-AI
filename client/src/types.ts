@@ -38,7 +38,7 @@ export interface Drawing {
   mode: 'paper' | 'screen';
   status: 'processing' | 'done' | 'failed' | 'rejected';
   error: string | null;
-  provider: 'openai' | 'mock' | null;
+  provider: string | null;
   praise: { en: { title: string; text: string }; ur: { title: string; text: string } } | null;
   tips: Tip[];
   scores: Scores | null;
